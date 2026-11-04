@@ -17,12 +17,14 @@ services:
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
       WORKSPACE_NAME: ${WORKSPACE_NAME}
       USERNAME: dev
+      ZEPHYR_BASE: /opt/zephyr-ws/zephyr
     privileged: true
     volumes:
       - .:/home/dev/${WORKSPACE_NAME}
       - /dev:/dev
       - cursor-server:/home/dev/.cursor-server
       - vscode-server:/home/dev/.vscode-server
+      - zephyr-ws:/opt/zephyr-ws
     device_cgroup_rules:
       - "c 189:* rwm"
       - "c 166:* rwm"
@@ -31,3 +33,4 @@ services:
 volumes:
   cursor-server:
   vscode-server:
+  zephyr-ws:

@@ -1,0 +1,75 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Analog Devices AD4080 20-bit differential SAR ADC.
+
+  The part has two SPI chip-selects on one bus. The node itself is the
+  configuration interface. Conversion results are read from an on-chip FIFO
+  through the data-interface chip-select while an external CNV clock runs.
+
+compatible: "adi,ad4080"
+
+include: [spi-device.yaml, adc-controller.yaml]
+
+on-bus: spi
+
+properties:
+  "#io-channel-cells":
+    const: 1
+  data-cs-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Data-interface chip-select (DCS), active low. On EVAL-AD4080ARDZ this
+      is Arduino D10.
+
+  fifo-full-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      AD4080 GPIO3, configured by the driver as the FIFO_FULL output.
+      On EVAL-AD4080ARDZ this is Arduino D3. Active high.
+
+  cnv-clk-en-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Enables the evaluation-board conversion-clock path. On
+      EVAL-AD4080ARDZ this is Arduino D4 and is active high.
+
+  osc40-en-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      40 MHz CNV oscillator enable. On EVAL-AD4080ARDZ this is Arduino D2,
+      active high.
+
+  osc20-en-gpios:
+    type: phandle-array
+    description: |
+      20 MHz CNV oscillator enable. On EVAL-AD4080ARDZ this is Arduino D1,
+      active high. Required when sampling-frequency-mhz is 20.
+
+  osc10-en-gpios:
+    type: phandle-array
+    description: |
+      10 MHz CNV oscillator enable. On EVAL-AD4080ARDZ this is Arduino D0,
+      active high. Required when sampling-frequency-mhz is 10.
+
+  sampling-frequency-mhz:
+    type: int
+    enum: [10, 20, 40]
+    default: 40
+    description: |
+      Which on-board CNV oscillator is enabled while the FIFO is filling.
+      The oscillator is stopped before the FIFO is read.
+
+  afe-en-gpios:
+    type: phandle-array
+    description: |
+      Analog front-end enable. On EVAL-AD4080ARDZ this is Arduino D9 and is
+      driven active during initialization when this property is present.
+
+io-channel-cells:
+  - input

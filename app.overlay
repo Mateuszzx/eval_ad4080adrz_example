@@ -1,0 +1,54 @@
+/*
+ * EVAL-AD4080ARDZ on the SDP-K1 Arduino header.
+ *
+ * D13/D12/D11 are SPI1 SCK/MISO/MOSI. D8 is the configuration chip-select
+ * and D10 is the data-interface chip-select. D2 selects the 40 MHz CNV
+ * oscillator; D1 and D0 stay off. D4 enables the conversion clock, D3 is
+ * GPIO3 (FIFO full), and D9 enables the analog front end.
+ */
+
+#include <zephyr/dt-bindings/adc/adc.h>
+
+/ {
+	zephyr,user {
+		io-channels = <&ad4080 0>;
+	};
+};
+
+&spi1 {
+	pinctrl-0 = <&spi1_sck_pb3 &spi1_miso_pb4 &spi1_mosi_pa7>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiog 11 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	ad4080: ad4080@0 {
+		compatible = "adi,ad4080";
+		reg = <0>;
+		spi-max-frequency = <10500000>;
+		spi-cpol;
+		spi-cpha;
+
+		data-cs-gpios = <&gpioa 15 GPIO_ACTIVE_LOW>;
+		fifo-full-gpios = <&gpiod 12 GPIO_ACTIVE_HIGH>;
+		cnv-clk-en-gpios = <&gpiog 9 GPIO_ACTIVE_HIGH>;
+		osc40-en-gpios = <&gpiog 7 GPIO_ACTIVE_HIGH>;
+		osc20-en-gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+		osc10-en-gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
+		afe-en-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
+		sampling-frequency-mhz = <40>;
+
+		#io-channel-cells = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		channel@0 {
+			reg = <0>;
+			zephyr,gain = "ADC_GAIN_1";
+			zephyr,reference = "ADC_REF_EXTERNAL0";
+			zephyr,vref-mv = <3000>;
+			zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+			zephyr,resolution = <20>;
+			zephyr,differential;
+		};
+	};
+};

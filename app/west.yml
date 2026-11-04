@@ -1,4 +1,4 @@
-# Nordic nRF — Cortex-M + Nordic HAL (+ Segger RTT often useful).
+# STMicroelectronics STM32.
 manifest:
   self:
     path: app
@@ -12,5 +12,6 @@ manifest:
       import:
         name-allowlist:
           - cmsis_6
-          - hal_nordic
-          - segger
+          - cmsis
+          - hal_stm32
+          - hal_st

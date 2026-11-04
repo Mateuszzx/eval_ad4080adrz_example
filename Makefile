@@ -1,7 +1,7 @@
 # Host-side workflow. west runs inside the container.
 # Windows: use the justfile in this directory (GNU make is not required).
 
-.PHONY: help sync-env up down shell wipe wipe-volumes image rebuild family init update build flash clean
+.PHONY: help sync-env up down shell wipe wipe-volumes image rebuild init update build flash clean
 
 COMPOSE := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 export COMPOSE_PROJECT_NAME := $(shell echo $(notdir $(CURDIR)) | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | sed 's/^-//;s/-$$//')
@@ -10,19 +10,16 @@ WORKSPACE_IN_CONTAINER := /home/dev/$(WORKSPACE_NAME)
 FACTORY_IMAGE := ghcr.io/mateuszzx/zephyr-workspace:latest
 SERVICE := zephyr_env
 
-BOARD ?= qemu_x86
-APP := app
-# Vendor HAL filter for west: qemu | nrf | stm32 | esp | full
-FAMILY ?= qemu
+BOARD ?= adi_sdp_k1/stm32f469xx
 
 help:
 	@echo "Project: $(COMPOSE_PROJECT_NAME)  (container: $(COMPOSE_PROJECT_NAME)-env)"
 	@echo "Workspace: $(WORKSPACE_IN_CONTAINER)"
 	@echo "Image: $(FACTORY_IMAGE)"
-	@echo "FAMILY=$(FAMILY)  BOARD=$(BOARD)"
-	@echo "Targets: up down shell wipe wipe-volumes image rebuild family init update build flash clean"
-	@echo "Example: make init FAMILY=nrf && make build BOARD=nrf52840dk/nrf52840 && make flash"
-	@echo "Windows: just init family=nrf && just build board=nrf52840dk/nrf52840"
+	@echo "BOARD=$(BOARD)"
+	@echo "Targets: up down shell wipe wipe-volumes image rebuild init update build flash clean"
+	@echo "Zephyr sources: /opt/zephyr-ws (container volume, not this repo)"
+	@echo "Example: make up && make init && make build && make flash"
 
 sync-env:
 	@bash scripts/sync-compose-env.sh
@@ -56,38 +53,36 @@ shell: sync-env
 		-e PROJECT_ROOT=$(WORKSPACE_IN_CONTAINER) -e WORKSPACE_NAME=$(WORKSPACE_NAME) \
 		-e HOST=$(COMPOSE_PROJECT_NAME) $(SERVICE) zsh
 
-family:
-	@bash scripts/select-family.sh $(FAMILY)
-
-init: sync-env family
+init: sync-env
 	@if [ -f /.dockerenv ]; then \
-		west init -l $(APP) && west update; \
+		bash scripts/zephyr-ws.sh init; \
 	else \
 		$(COMPOSE) exec -u dev -w $(WORKSPACE_IN_CONTAINER) $(SERVICE) \
-			zsh -ic 'west init -l $(APP) && west update'; \
+			zsh -ic 'bash scripts/zephyr-ws.sh init'; \
 	fi
 
-update: sync-env family
+update: sync-env
 	@if [ -f /.dockerenv ]; then \
-		west update; \
+		bash scripts/zephyr-ws.sh update; \
 	else \
-		$(COMPOSE) exec -u dev -w $(WORKSPACE_IN_CONTAINER) $(SERVICE) zsh -ic 'west update'; \
+		$(COMPOSE) exec -u dev -w $(WORKSPACE_IN_CONTAINER) $(SERVICE) \
+			zsh -ic 'bash scripts/zephyr-ws.sh update'; \
 	fi
 
 build: sync-env
 	@if [ -f /.dockerenv ]; then \
-		west build -b $(BOARD) -s $(APP) -d build; \
+		bash scripts/zephyr-ws.sh build $(BOARD); \
 	else \
 		$(COMPOSE) exec -u dev -w $(WORKSPACE_IN_CONTAINER) $(SERVICE) \
-			zsh -ic 'west build -b $(BOARD) -s $(APP) -d build'; \
+			zsh -ic 'bash scripts/zephyr-ws.sh build $(BOARD)'; \
 	fi
 
 flash: sync-env
 	@if [ -f /.dockerenv ]; then \
-		west flash -d build; \
+		bash scripts/zephyr-ws.sh flash; \
 	else \
 		$(COMPOSE) exec -u root -w $(WORKSPACE_IN_CONTAINER) $(SERVICE) \
-			zsh -ic 'west flash -d build'; \
+			zsh -ic 'bash scripts/zephyr-ws.sh flash'; \
 	fi
 
 clean:

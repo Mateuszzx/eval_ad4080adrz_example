@@ -6,7 +6,7 @@ DEV_USER="${USERNAME:-dev}"
 DEV_HOME="$(getent passwd "$DEV_USER" | cut -d: -f6)"
 DEV_HOME="${DEV_HOME:-/home/dev}"
 
-for d in "${DEV_HOME}/.cursor-server" "${DEV_HOME}/.vscode-server"; do
+for d in "${DEV_HOME}/.cursor-server" "${DEV_HOME}/.vscode-server" /opt/zephyr-ws; do
   mkdir -p "$d"
   chown -R "${DEV_USER}:${DEV_USER}" "$d" || true
 done
