@@ -1,0 +1,33 @@
+services:
+  zephyr_env:
+    image: ${COMPOSE_PROJECT_NAME}-overlay:local
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME}-env
+    hostname: ${COMPOSE_PROJECT_NAME}
+    user: root
+    entrypoint: ["/bin/bash", "/home/dev/${WORKSPACE_NAME}/scripts/container-entrypoint.sh"]
+    working_dir: /home/dev/${WORKSPACE_NAME}
+    environment:
+      HOST: ${COMPOSE_PROJECT_NAME}
+      HOSTNAME: ${COMPOSE_PROJECT_NAME}
+      PROJECT_ROOT: /home/dev/${WORKSPACE_NAME}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      WORKSPACE_NAME: ${WORKSPACE_NAME}
+      USERNAME: dev
+    privileged: true
+    volumes:
+      - .:/home/dev/${WORKSPACE_NAME}
+      - /dev:/dev
+      - cursor-server:/home/dev/.cursor-server
+      - vscode-server:/home/dev/.vscode-server
+    device_cgroup_rules:
+      - "c 189:* rwm"
+      - "c 166:* rwm"
+      - "c 188:* rwm"
+
+volumes:
+  cursor-server:
+  vscode-server:

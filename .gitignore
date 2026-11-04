@@ -1,0 +1,12 @@
+build/
+.west/
+.venv/
+__pycache__/
+*.pyc
+*.elf
+*.bin
+*.hex
+.DS_Store
+.env
+zephyr/
+.west/

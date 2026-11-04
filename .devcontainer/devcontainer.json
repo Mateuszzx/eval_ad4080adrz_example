@@ -1,0 +1,20 @@
+{
+  "name": "Zephyr Workspace",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "zephyr_env",
+  "workspaceFolder": "/home/dev/${localWorkspaceFolderBasename}",
+  "remoteUser": "dev",
+  "initializeCommand": "bash scripts/sync-compose-env.sh",
+  "shutdownAction": "none",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "nordic-semiconductor.nrf-connect",
+        "ms-python.python"
+      ]
+    }
+  },
+  "postCreateCommand": "west --version && uv --version"
+}

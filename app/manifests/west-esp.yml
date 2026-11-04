@@ -1,0 +1,14 @@
+# Espressif ESP32 / ESP32-C* / ESP32-S* (Zephyr Espressif HAL).
+manifest:
+  self:
+    path: app
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.5.0-rc1
+      import:
+        name-allowlist:
+          - hal_espressif
