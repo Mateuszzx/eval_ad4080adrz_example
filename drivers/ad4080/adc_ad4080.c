@@ -48,6 +48,11 @@ LOG_MODULE_REGISTER(ad4080, CONFIG_ADC_LOG_LEVEL);
 #define AD4080_NOT_READY          BIT(7)
 #define AD4080_FIFO_FULL          BIT(7)
 #define AD4080_DATA_INTF_SPI      BIT(0)
+/* 0 = one SPI lane (SDOB). 1 = four lanes, which this board does not wire. */
+#define AD4080_SPI_QUAD_LANES     BIT(2)
+#define AD4080_INTF_CHK_EN        BIT(4)
+#define AD4080_TEST_PATTERN       0xAC5D6
+#define AD4080_TEST_SAMPLES       4
 #define AD4080_GPIO3_EN           BIT(3)
 #define AD4080_GPIO3_SEL_MASK     GENMASK(7, 4)
 #define AD4080_GPIO_SEL_FIFO_FULL 1U
@@ -58,11 +63,13 @@ LOG_MODULE_REGISTER(ad4080, CONFIG_ADC_LOG_LEVEL);
 #define AD4080_CHIP_TYPE          0x07
 #define AD4080_PRODUCT_ID         0x0050
 #define AD4080_RESOLUTION         20
-#define AD4080_MAX_SAMPLES        256
+/* One full result FIFO. A capture of this length is contiguous at the CNV rate. */
+#define AD4080_MAX_SAMPLES        16384
 #define AD4080_SAMPLE_BYTES       3
 #define AD4080_FIFO_HEADER_BYTES  1
 #define AD4080_FIFO_TIMEOUT_MS    200
-#define AD4080_RESET_TIMEOUT_MS   30
+/* Datasheet initialization time after the reset is started. */
+#define AD4080_RESET_SETTLE_MS    1
 
 struct ad4080_config {
 	struct spi_dt_spec bus;
@@ -133,40 +140,52 @@ static int ad4080_update_bits(const struct device *dev, uint16_t reg,
 
 static int ad4080_soft_reset(const struct device *dev)
 {
-	int64_t deadline;
 	uint8_t status;
 	int ret;
 
+	/*
+	 * Both SW_RESET bits are armed by writing 1, and the reset starts
+	 * only when a later write clears either of them. Configuration
+	 * access during the following 300 µs is ignored and latches
+	 * NOT_READY_ERR until that bit is written with 1.
+	 */
 	ret = ad4080_reg_write(dev, AD4080_REG_INTERFACE_CONFIG_A, AD4080_SW_RESET);
 	if (ret) {
 		return ret;
 	}
 
-	/* Register writes are ignored while NOT_READY_ERR is set. */
-	k_msleep(1);
+	ret = ad4080_reg_write(dev, AD4080_REG_INTERFACE_CONFIG_A, AD4080_SDO_ENABLE);
+	if (ret) {
+		return ret;
+	}
 
-	deadline = k_uptime_get() + AD4080_RESET_TIMEOUT_MS;
-	do {
-		ret = ad4080_reg_write(dev, AD4080_REG_INTERFACE_CONFIG_A,
-				       AD4080_SDO_ENABLE);
-		if (ret) {
-			return ret;
-		}
+	k_msleep(AD4080_RESET_SETTLE_MS);
 
-		ret = ad4080_reg_read(dev, AD4080_REG_INTERFACE_STATUS_A, &status);
-		if (ret) {
-			return ret;
-		}
+	ret = ad4080_reg_read(dev, AD4080_REG_INTERFACE_STATUS_A, &status);
+	if (ret) {
+		return ret;
+	}
 
-		if ((status & AD4080_NOT_READY) == 0) {
-			return 0;
-		}
+	if ((status & AD4080_NOT_READY) == 0) {
+		return 0;
+	}
 
-		k_msleep(1);
-	} while (k_uptime_get() < deadline);
+	ret = ad4080_reg_write(dev, AD4080_REG_INTERFACE_STATUS_A, AD4080_NOT_READY);
+	if (ret) {
+		return ret;
+	}
 
-	LOG_ERR("software reset timed out, interface status 0x%02x", status);
-	return -ETIMEDOUT;
+	ret = ad4080_reg_read(dev, AD4080_REG_INTERFACE_STATUS_A, &status);
+	if (ret) {
+		return ret;
+	}
+
+	if ((status & AD4080_NOT_READY) != 0) {
+		LOG_ERR("software reset timed out, interface status 0x%02x", status);
+		return -ETIMEDOUT;
+	}
+
+	return 0;
 }
 
 static int ad4080_set_clock(const struct device *dev, bool run)
@@ -364,6 +383,64 @@ static int ad4080_capture(const struct device *dev, int32_t *samples, uint32_t c
 	return fifo_ret;
 }
 
+/* 20-bit two's complement, as stored in the sign-extended 24-bit FIFO word. */
+static int32_t ad4080_sign_extend_20(uint32_t code)
+{
+	return (int32_t)(code << 12) >> 12;
+}
+
+/*
+ * INTF_CHK_EN replaces conversion results with 0xAC5D6. The register text
+ * calls that an LVDS function; this still runs it on the single-lane SPI
+ * FIFO, which is the interface this board can actually read.
+ */
+static int ad4080_check_data_interface(const struct device *dev)
+{
+	struct ad4080_data *data = dev->data;
+	int32_t samples[AD4080_TEST_SAMPLES];
+	int32_t expect = ad4080_sign_extend_20(AD4080_TEST_PATTERN);
+	bool match = true;
+	int ret;
+	int clear_ret;
+
+	ret = ad4080_update_bits(dev, AD4080_REG_DATA_INTF_CONFIG_A,
+				 AD4080_INTF_CHK_EN, AD4080_INTF_CHK_EN);
+	if (ret) {
+		return ret;
+	}
+
+	ret = ad4080_capture(dev, samples, AD4080_TEST_SAMPLES);
+	clear_ret = ad4080_update_bits(dev, AD4080_REG_DATA_INTF_CONFIG_A,
+				       AD4080_INTF_CHK_EN, 0);
+	if (clear_ret) {
+		return clear_ret;
+	}
+	if (ret) {
+		LOG_WRN("single-lane SPI test pattern capture failed: %d", ret);
+		return 0;
+	}
+
+	LOG_HEXDUMP_INF(data->raw,
+			AD4080_FIFO_HEADER_BYTES +
+				(AD4080_TEST_SAMPLES * AD4080_SAMPLE_BYTES),
+			"single-lane SPI FIFO");
+
+	for (uint32_t i = 0; i < AD4080_TEST_SAMPLES; i++) {
+		if (samples[i] != expect) {
+			match = false;
+		}
+	}
+
+	if (match) {
+		LOG_INF("single-lane SPI test pattern 0xAC5D6");
+		return 0;
+	}
+
+	LOG_WRN("single-lane SPI test pattern mismatch, codes %d %d %d %d, expected %d",
+		samples[0], samples[1], samples[2], samples[3], expect);
+	return 0;
+}
+
 static int ad4080_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	struct ad4080_data *data = dev->data;
@@ -421,6 +498,17 @@ static int ad4080_init(const struct device *dev)
 
 	if (!spi_is_ready_dt(&data->data_bus) || !gpio_is_ready_dt(&cfg->fifo_full)) {
 		return -ENODEV;
+	}
+
+	/*
+	 * The SPI controller only configures the config chip-select from
+	 * devicetree. DCS is a second GPIO on the same bus, so it has to be
+	 * an output here or the data transfer never frames and MISO stays
+	 * high (every code reads as -1).
+	 */
+	ret = gpio_pin_configure_dt(&cfg->data_cs, GPIO_OUTPUT_INACTIVE);
+	if (ret) {
+		return ret;
 	}
 
 	ret = gpio_pin_configure_dt(&cfg->fifo_full, GPIO_INPUT);
@@ -529,8 +617,10 @@ static int ad4080_init(const struct device *dev)
 		return -EIO;
 	}
 
+	/* Bit 0 selects SPI. Bit 2 stays clear: one lane, not quad SPI. */
 	ret = ad4080_update_bits(dev, AD4080_REG_DATA_INTF_CONFIG_A,
-				 AD4080_DATA_INTF_SPI, AD4080_DATA_INTF_SPI);
+				 AD4080_DATA_INTF_SPI | AD4080_SPI_QUAD_LANES,
+				 AD4080_DATA_INTF_SPI);
 	if (ret) {
 		return ret;
 	}
@@ -543,6 +633,11 @@ static int ad4080_init(const struct device *dev)
 
 	ret = ad4080_update_bits(dev, AD4080_REG_GPIO_CONFIG_C, AD4080_GPIO3_SEL_MASK,
 				 AD4080_GPIO_SEL_FIFO_FULL << 4);
+	if (ret) {
+		return ret;
+	}
+
+	ret = ad4080_check_data_interface(dev);
 	if (ret) {
 		return ret;
 	}
