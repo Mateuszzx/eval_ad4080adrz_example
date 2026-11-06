@@ -2,9 +2,12 @@
  * Copyright (c) 2026
  * SPDX-License-Identifier: Apache-2.0
  *
- * Fill the SDP-K1 SDRAM with AD4080 FIFO bursts, then send that buffer
- * on the USB high-speed CDC port. Each burst is one FIFO deep and is
- * gap-free at the CNV rate. The SPI readout sits between bursts.
+ * Fill the 16 MB SDRAM with AD4080 FIFO bursts, then send that buffer
+ * on the USB CDC port. The converter has one 16384-sample FIFO and it
+ * is single-port, so the CNV clock stops while SPI DMA clocks that
+ * FIFO out. Samples inside one FIFO are gap-free at the CNV rate.
+ * The link is mode 3 at 10.5 MHz. The USB controller asks for high
+ * speed; this board enumerates at full speed.
  *
  * Request:  0xA5 0x5A, uint32 little-endian count
  *           count 0 asks for limits instead of samples
@@ -221,6 +224,7 @@ static int sdram_test(void)
 	return 0;
 }
 
+/* One adc_read() is one FIFO. Pack those int32 codes as 24-bit little-endian. */
 static int capture_samples(uint32_t count)
 {
 	uint8_t *dst = (uint8_t *)SDRAM_ADDR;
@@ -330,7 +334,7 @@ static int wait_for_host(void)
 {
 	uint32_t dtr = 0;
 
-	printk("AD4080 USB high-speed waiting for the host\n");
+	printk("AD4080 USB waiting for the host\n");
 	while (dtr == 0) {
 		if (uart_line_ctrl_get(usb, UART_LINE_CTRL_DTR, &dtr) != 0) {
 			return -ENOTSUP;

@@ -2,9 +2,10 @@
  * Copyright (c) 2026
  * SPDX-License-Identifier: Apache-2.0
  *
- * USB 2.0 high-speed CDC ACM on the SDP-K1 ULPI port. The hub on the
- * USB-C connector keeps DAPLink on its other downstream port, so the
- * console UART stays up while this device enumerates.
+ * USB CDC ACM on the SDP-K1 ULPI port. The controller is configured
+ * for high speed. On this board the link enumerates at full speed.
+ * The hub on the USB-C connector keeps DAPLink on its other downstream
+ * port, so the console UART stays up while this device enumerates.
  */
 
 #include <zephyr/device.h>

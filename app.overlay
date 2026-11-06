@@ -13,7 +13,8 @@
 #include <zephyr/dt-bindings/memory-controller/stm32-fmc-sdram.h>
 
 /* UART5 is the DAPLink virtual COM port, used for the boot log only.
- * Samples leave through the USB high-speed CDC device.
+ * Samples leave through the USB CDC device. The controller asks for
+ * high speed; this board enumerates at full speed.
  */
 &uart5 {
 	current-speed = <1000000>;

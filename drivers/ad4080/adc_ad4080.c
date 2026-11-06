@@ -4,12 +4,17 @@
  *
  * Zephyr ADC driver for the AD4080 on EVAL-AD4080ARDZ.
  *
- * Configuration uses the SPI register interface (mode 3). Conversions are
- * started by the evaluation board's CNV oscillator and land in the on-chip
- * FIFO. A read stops that clock, then clocks the FIFO out on the data
- * chip-select: one header byte followed by big-endian, sign-extended
- * 24-bit samples. That is the single-lane SPI capture sequence used by the
- * ADI SDP-K1 firmware.
+ * The register port is SPI mode 3. SCLK idles high, the converter
+ * changes SDO on the falling edge, and the MCU samples on the rising
+ * edge. A frame is one read/write bit, a 15-bit address, and one data
+ * byte.
+ *
+ * Conversions come from the board CNV oscillator and land in the one
+ * 16384-sample FIFO. That memory is single-port, so a read stops the
+ * oscillator, waits for FIFO full, and DMA-clocks the data chip-select:
+ * one header byte, then big-endian sign-extended 24-bit samples. The
+ * data clock is 10.5 MHz on one lane. One FIFO is gap-free at the CNV
+ * rate. The next FIFO starts after this readout.
  */
 
 #define DT_DRV_COMPAT adi_ad4080

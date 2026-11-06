@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Capture AD4080 samples from the SDP-K1 SDRAM buffer.
 
-The board fills external RAM with FIFO bursts before it sends anything.
-Each burst is 16384 samples and is gap-free at the CNV rate. The SPI
-readout, about 37 ms, sits between bursts. The buffer then comes out of
-the USB high-speed CDC device (VID 0x1209, PID 0x4080), not the DAPLink
-serial port.
+The board fills external RAM with one FIFO at a time before it sends
+anything. The converter has a single 16384-sample FIFO, so each burst
+is gap-free at the CNV rate and the next burst waits for the SPI DMA
+readout, about 47 ms at 10.5 MHz. The buffer then comes out of the
+USB CDC device (VID 0x1209, PID 0x4080). That link enumerates at full
+speed. It is not the DAPLink serial port.
 
     from ad4080 import Ad4080
 
@@ -58,7 +59,7 @@ class Ad4080:
     def __init__(self, port: str | None = None, timeout: float = 30.0):
         self.port = port or find_port()
         self.timeout = timeout
-        # The CDC baud rate is not the wire rate. USB high-speed carries the bytes.
+        # The CDC baud rate is ignored. The bytes move at the USB full-speed rate.
         self._ser = serial.Serial(self.port, 115200, timeout=0.2, exclusive=True)
         self._ser.reset_input_buffer()
         self.fifo_samples, self.max_samples, self.sample_hz = self._read_info()
