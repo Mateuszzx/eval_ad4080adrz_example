@@ -190,8 +190,8 @@ class Ad4080:
         if count == 0:
             return 2.0
         fifos = (count + self.fifo_samples - 1) // self.fifo_samples
-        # Each burst is the SPI readout of one FIFO, about 100 ms on this
-        # board. The reply header is not sent until the last burst is stored.
+        # Each burst is one FIFO: the DMA readout is about 50 ms, then the
+        # samples are stored. The header is not sent until the last burst.
         return 5.0 + fifos * 0.25
 
     def _read_frame(self, sync_deadline: float, width: int) -> tuple[int, int, bytes]:

@@ -68,6 +68,14 @@ LOG_MODULE_REGISTER(ad4080, CONFIG_ADC_LOG_LEVEL);
 #define AD4080_SAMPLE_BYTES       3
 #define AD4080_FIFO_HEADER_BYTES  1
 #define AD4080_FIFO_TIMEOUT_MS    200
+/*
+ * SPI1 is on APB2 at 84 MHz. /2 (42 MHz) and /4 (21 MHz) are both under
+ * the 50 MHz DCLK limit, and both sampled the sign bit early on this
+ * board: half the words at 42 MHz, and the first word of every FIFO plus
+ * a few later words at 21 MHz. tDDSDO is 9.6 ns. /8 is 10.5 MHz, half a
+ * period is 48 ns. DMA holds that clock across the whole FIFO.
+ */
+#define AD4080_DATA_SPI_HZ        10500000U
 /* Datasheet initialization time after the reset is started. */
 #define AD4080_RESET_SETTLE_MS    1
 
@@ -493,6 +501,7 @@ static int ad4080_init(const struct device *dev)
 	}
 
 	data->data_bus = cfg->bus;
+	data->data_bus.config.frequency = AD4080_DATA_SPI_HZ;
 	data->data_bus.config.cs.gpio = cfg->data_cs;
 	data->data_bus.config.cs.cs_is_gpio = true;
 
@@ -643,7 +652,8 @@ static int ad4080_init(const struct device *dev)
 	}
 
 	data->ready = true;
-	LOG_INF("CNV clock %u MHz, SPI data interface, FIFO capture", cfg->sampling_mhz);
+	LOG_INF("CNV clock %u MHz, data SPI %u Hz, FIFO capture", cfg->sampling_mhz,
+		data->data_bus.config.frequency);
 	return 0;
 }
 

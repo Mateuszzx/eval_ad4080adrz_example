@@ -2,12 +2,13 @@
  * EVAL-AD4080ARDZ on the SDP-K1 Arduino header.
  *
  * D13/D12/D11 are SPI1 SCK/MISO/MOSI. D8 is the configuration chip-select
- * and D10 is the data-interface chip-select. D2 selects the 40 MHz CNV
- * oscillator; D1 and D0 stay off. D4 enables the conversion clock, D3 is
+ * and D10 is the data-interface chip-select. D0 selects the 10 MHz CNV
+ * oscillator; D2 and D1 stay off. D4 enables the conversion clock, D3 is
  * GPIO3 (FIFO full), and D9 enables the analog front end.
  */
 
 #include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/dma/stm32_dma.h>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include <zephyr/dt-bindings/memory-controller/stm32-fmc-sdram.h>
 
@@ -91,15 +92,27 @@
 	};
 };
 
+/* SPI1_TX is DMA2 stream 5 channel 3. SPI1_RX is stream 2 channel 3. */
+&dma2 {
+	status = "okay";
+};
+
 &spi1 {
 	pinctrl-0 = <&spi1_sck_pb3 &spi1_miso_pb4 &spi1_mosi_pa7>;
 	pinctrl-names = "default";
+	dmas = <&dma2 5 3 STM32_DMA_PERIPH_TX STM32_DMA_FIFO_FULL>,
+	       <&dma2 2 3 STM32_DMA_PERIPH_RX STM32_DMA_FIFO_FULL>;
+	dma-names = "tx", "rx";
 	cs-gpios = <&gpiog 11 GPIO_ACTIVE_LOW>;
 	status = "okay";
 
 	ad4080: ad4080@0 {
 		compatible = "adi,ad4080";
 		reg = <0>;
+		/*
+		 * Register port, APB2/8. The data port uses the same 10.5 MHz.
+		 * 21 MHz and 42 MHz both sampled the data-port sign bit early.
+		 */
 		spi-max-frequency = <10500000>;
 		spi-cpol;
 		spi-cpha;
@@ -111,7 +124,7 @@
 		osc20-en-gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
 		osc10-en-gpios = <&gpioa 1 GPIO_ACTIVE_HIGH>;
 		afe-en-gpios = <&gpiob 15 GPIO_ACTIVE_HIGH>;
-		sampling-frequency-mhz = <40>;
+		sampling-frequency-mhz = <10>;
 
 		#io-channel-cells = <1>;
 		#address-cells = <1>;
